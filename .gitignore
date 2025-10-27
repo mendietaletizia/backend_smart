@@ -1,0 +1,88 @@
+# Django
+*.log
+*.pot
+*.pyc
+*.pyo
+*.py[co]
+*~
+__pycache__/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Archivos de configuración sensibles
+.env
+.env.local
+.env.*.local
+
+# Entorno virtual
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Archivos de Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Proyecto Django
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+local_settings.py
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Media y archivos estáticos
+/media
+/staticfiles
+/static
+*.pdf
+*.xlsx
+*.xls
+*.csv
+
+# Modelos de IA guardados
+*.pkl
+*.joblib
+*.h5
+*.model
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Archivos de base de datos
+*.db
+*.sqlite3
+
+# Archivos temporales
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Archivos de migraciones (opcional - descomenta si no quieres commitear migraciones)
+# /migrations/
+
