@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+from decouple import config
+
 
 # -------------------------------
 # RUTAS BASE
@@ -28,11 +30,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # CONFIGURACIONES BÁSICAS
 # -------------------------------
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'v+6*+q)chl-+d%2((*ornrv1m9s=1+1q#@gen##@19aj9wwunz'
+SECRET_KEY = config('SECRET_KEY', default='...')
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
 ALLOWED_HOSTS = ['*']  # Permite todas las conexiones (para desarrollo)
 
@@ -108,10 +108,10 @@ WSGI_APPLICATION = 'backend_smart.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'smart',        # Nombre de tu BD
-        'USER': 'postgres',     # Usuario
-        'PASSWORD': 'leti',     # Contraseña
+       'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config("DB_NAME"),
+        'USER': config("DB_USER"),
+        'PASSWORD': config("DB_PASSWORD"),
     }
 }
 
