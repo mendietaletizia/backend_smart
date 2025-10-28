@@ -19,11 +19,12 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # Incluir las URLs de las apps (cuando las crees)
-    # path('api/auth/', include('autenticacion_usuarios.urls')),
+    # Incluir las URLs de las apps
+    path('api/', include('autenticacion_usuarios.urls')),
     # path('api/productos/', include('productos.urls')),
     # path('api/ventas/', include('ventas_carrito.urls')),
     # path('api/dashboard/', include('dashboard_inteligente.urls')),

@@ -4,8 +4,13 @@ from . import views
 app_name = 'autenticacion_usuarios'
 
 urlpatterns = [
-    # Define aquí tus URLs de autenticación
-    # path('registro/', views.RegistroView.as_view(), name='registro'),
-    # path('login/', views.LoginView.as_view(), name='login'),
+    # CU1: Iniciar Sesión
+    path('login/', views.LoginView.as_view(), name='login'),
+    
+    # CU2: Cerrar Sesión
+    path('logout/', views.LogoutView.as_view(), name='logout'),
+    
+    # Vista auxiliar para verificar sesión
+    path('check-session/', views.CheckSessionView.as_view(), name='check_session'),
 ]
 
