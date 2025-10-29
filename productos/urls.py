@@ -4,7 +4,8 @@ from . import views
 app_name = 'productos'
 
 urlpatterns = [
-    # Define aquí tus URLs de productos
-    # path('', views.ProductoListCreateView.as_view(), name='lista'),
+    path('', views.ProductoListView.as_view(), name='list_products'),
+    path('admin/', views.ProductoAdminView.as_view(), name='admin_products'),
+    path('upload-image/', views.UploadImageView.as_view(), name='upload_image'),
 ]
 

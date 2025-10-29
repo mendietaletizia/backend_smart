@@ -1,15 +1,11 @@
-from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-from django.contrib.auth import login, logout
-from django.contrib.sessions.models import Session
 from django.utils.decorators import method_decorator
 from django.views import View
 import json
 import logging
 
-from .models import Usuario, Rol, Bitacora
+from .models import Usuario, Rol, Bitacora, Cliente
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +64,8 @@ class LoginView(View):
                     'message': 'Usuario inactivo. Contacte al administrador.'
                 }, status=401)
             
-            # Verificar contraseña
-            if not usuario.check_password(contrasena):
+            # Verificar contraseña (hash o texto plano para entorno académico)
+            if not (usuario.check_password(contrasena) or usuario.contrasena == contrasena):
                 return JsonResponse({
                     'success': False,
                     'message': 'Credenciales inválidas'
@@ -260,3 +256,177 @@ class CheckSessionView(View):
                 'success': False,
                 'message': 'Error interno del servidor'
             }, status=500)
+
+
+# ==========================================================
+# CASO DE USO 3: REGISTRAR CUENTA DEL CLIENTE
+# ==========================================================
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RegisterView(View):
+    """
+    CU3: Registrar Cuenta del Cliente
+    Permite a nuevos usuarios registrarse como clientes en el sistema
+    """
+    
+    def get(self, request):
+        """Mostrar información del endpoint de registro"""
+        return JsonResponse({
+            'endpoint': 'Register API',
+            'method': 'POST',
+            'description': 'Registrar nueva cuenta de cliente',
+            'required_fields': ['nombre', 'apellido', 'email', 'contrasena', 'telefono'],
+            'optional_fields': ['direccion', 'ciudad'],
+            'example': {
+                'nombre': 'Juan',
+                'apellido': 'Pérez',
+                'email': 'juan@email.com',
+                'contrasena': 'miPassword123',
+                'telefono': '+1234567890',
+                'direccion': 'Calle 123, #45',
+                'ciudad': 'Ciudad'
+            },
+            'note': 'Use POST method to register. Email must be unique.'
+        })
+    
+    def post(self, request):
+        try:
+            # Obtener datos del request
+            data = json.loads(request.body)
+            
+            # Campos obligatorios
+            nombre = data.get('nombre', '').strip()
+            apellido = data.get('apellido', '').strip()
+            email = data.get('email', '').strip().lower()
+            contrasena = data.get('contrasena', '')
+            telefono = data.get('telefono', '').strip()
+            
+            # Campos opcionales
+            direccion = data.get('direccion', '').strip()
+            ciudad = data.get('ciudad', '').strip()
+            
+            # Validaciones básicas
+            if not nombre:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El nombre es obligatorio'
+                }, status=400)
+            
+            if not email:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El email es obligatorio'
+                }, status=400)
+            
+            if not contrasena:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'La contraseña es obligatoria'
+                }, status=400)
+            
+            if len(contrasena) < 6:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'La contraseña debe tener al menos 6 caracteres'
+                }, status=400)
+            
+            # Validar formato de email básico
+            if '@' not in email or '.' not in email:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Formato de email inválido'
+                }, status=400)
+            
+            # Verificar si el email ya existe
+            if Usuario.objects.filter(email=email).exists():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Este email ya está registrado'
+                }, status=400)
+            
+            # Obtener o crear rol de Cliente
+            try:
+                rol_cliente = Rol.objects.get(nombre='Cliente')
+            except Rol.DoesNotExist:
+                rol_cliente = Rol.objects.create(nombre='Cliente')
+            
+            # Crear usuario
+            usuario = Usuario.objects.create(
+                nombre=nombre,
+                apellido=apellido,
+                email=email,
+                telefono=telefono,
+                id_rol=rol_cliente,
+                estado=True
+            )
+            
+            # Encriptar contraseña
+            usuario.set_password(contrasena)
+            usuario.save()
+            
+            # Crear registro de cliente usando get_or_create para evitar duplicados
+            cliente, created = Cliente.objects.get_or_create(
+                id=usuario,
+                defaults={
+                    'direccion': direccion,
+                    'ciudad': ciudad
+                }
+            )
+            
+            # Si ya existía, actualizar datos
+            if not created:
+                cliente.direccion = direccion
+                cliente.ciudad = ciudad
+                cliente.save()
+            
+            # Obtener IP del cliente
+            ip_address = self.get_client_ip(request)
+            
+            # Registrar en bitácora
+            Bitacora.objects.create(
+                id_usuario=usuario,
+                accion='REGISTRO_CLIENTE',
+                modulo='AUTENTICACION',
+                descripcion=f'Nuevo cliente registrado: {usuario.nombre} {usuario.apellido}',
+                ip=ip_address
+            )
+            
+            # Respuesta exitosa
+            return JsonResponse({
+                'success': True,
+                'message': 'Cuenta de cliente creada exitosamente',
+                'user': {
+                    'id': usuario.id,
+                    'nombre': usuario.nombre,
+                    'apellido': usuario.apellido,
+                    'email': usuario.email,
+                    'telefono': usuario.telefono,
+                    'direccion': cliente.direccion,
+                    'ciudad': cliente.ciudad,
+                    'rol': 'Cliente'
+                }
+            }, status=201)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'message': 'Formato de datos inválido'
+            }, status=400)
+        except Exception as e:
+            logger.error(f"Error en registro: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return JsonResponse({
+                'success': False,
+                'message': f'Error interno: {str(e)}'
+            }, status=500)
+    
+    def get_client_ip(self, request):
+        """Obtener IP del cliente"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+

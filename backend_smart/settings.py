@@ -33,6 +33,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='...')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
+# Configuración de ImgBB API
+API_KEY_IMGBB = config('API_KEY_IMGBB', default='49879cfe2271fe3272c9864c92e980d1')
+
 
 ALLOWED_HOSTS = ['*']  # Permite todas las conexiones (para desarrollo)
 
@@ -75,9 +78,25 @@ MIDDLEWARE = [
 ]
 
 # -------------------------------
-# CONFIGURACIÓN DE CORS
+# CONFIGURACIÓN DE CORS / CSRF / COOKIES
 # -------------------------------
-CORS_ALLOW_ALL_ORIGINS = True  # Permitir cualquier origen (React, Flutter, etc.)
+# Para desarrollo con Vite (5173) y clientes móviles (Flutter) usando sesiones
+# Nota: Vite usa proxy /api→8000, así que en dev navegador no requiere CORS,
+# pero lo dejamos listo para clientes externos.
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+# Cookies de sesión en desarrollo
+SESSION_COOKIE_SAMESITE = 'Lax'   # Evita problemas básicos sin abrirlo demasiado
+SESSION_COOKIE_SECURE = False     # True solo en HTTPS
 
 # -------------------------------
 # URLS Y WSGI

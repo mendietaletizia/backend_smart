@@ -25,8 +25,8 @@ urlpatterns = [
     
     # Incluir las URLs de las apps
     path('api/', include('autenticacion_usuarios.urls')),
-    # path('api/productos/', include('productos.urls')),
-    # path('api/ventas/', include('ventas_carrito.urls')),
+    path('api/productos/', include('productos.urls')),
+    path('api/ventas/', include('ventas_carrito.urls')),
     # path('api/dashboard/', include('dashboard_inteligente.urls')),
     # path('api/reportes/', include('reportes_dinamicos.urls')),
 ]
