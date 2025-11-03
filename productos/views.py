@@ -69,6 +69,7 @@ class ProductoListView(View):
                     'categoria': p.categoria.nombre if p.categoria else None,
                     'marca': p.marca.nombre if p.marca else None,
                     'proveedor': p.proveedor.nombre if p.proveedor else None,
+                    'estado': True,
                 })
             
             return JsonResponse({
@@ -134,6 +135,7 @@ class ProductoAdminView(View):
                     'categoria': p.categoria.nombre if p.categoria else None,
                     'marca': p.marca.nombre if p.marca else None,
                     'proveedor': p.proveedor.nombre if p.proveedor else None,
+                    'estado': True,
                 })
             
             return JsonResponse({

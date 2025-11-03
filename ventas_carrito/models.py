@@ -72,7 +72,8 @@ class DetalleVenta(models.Model):
     """Modelo para detalles de venta"""
     id_detalle = models.AutoField(primary_key=True)
     venta = models.ForeignKey(Venta, related_name='detalles', on_delete=models.CASCADE, db_column='venta_id')
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
+    # Alinear con DB: columna 'id_producto' sin FK real para evitar errores de borrado
+    producto = models.ForeignKey(Producto, on_delete=models.DO_NOTHING, db_column='id_producto', db_constraint=False, null=True, blank=True)
     cantidad = models.PositiveIntegerField()
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)

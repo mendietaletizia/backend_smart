@@ -45,10 +45,13 @@ class Proveedor(models.Model):
 
 
 class Producto(models.Model):
+    # PK real en DB es 'id'
     id = models.AutoField(primary_key=True)
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True, null=True)
+    # La columna con datos en DB es 'precio_unitario'
     precio = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, db_column='precio_unitario')
+    # Columna existente para precio de compra
     precio_compra = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, db_column='precio_unitario_compra')
     imagen = models.URLField(max_length=500, blank=True, null=True)
     marca = models.ForeignKey(Marca, on_delete=models.SET_NULL, null=True, blank=True, db_column='id_marca')

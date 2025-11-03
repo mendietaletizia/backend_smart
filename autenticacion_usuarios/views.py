@@ -38,7 +38,7 @@ class LoginView(View):
         try:
             # Obtener datos del request
             data = json.loads(request.body)
-            email = data.get('email', '').strip()
+            email = data.get('email', '').strip().lower()
             contrasena = data.get('contrasena', '')
             
             # Validaciones básicas
@@ -391,6 +391,13 @@ class RegisterView(View):
                 ip=ip_address
             )
             
+            # Auto login: crear sesión para el nuevo usuario
+            request.session['user_id'] = usuario.id
+            request.session['user_email'] = usuario.email
+            request.session['user_nombre'] = usuario.nombre
+            request.session['user_rol'] = 'Cliente'
+            request.session['is_authenticated'] = True
+
             # Respuesta exitosa
             return JsonResponse({
                 'success': True,
