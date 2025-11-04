@@ -8,8 +8,11 @@ from django.conf import settings
 import json
 import requests
 import base64
+import logging
 
 from .models import Producto, Categoria, Marca, Proveedor, Stock
+
+logger = logging.getLogger(__name__)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -33,10 +36,16 @@ class ProductoListView(View):
                 productos = productos.filter(categoria__nombre__iexact=categoria_nombre)
             
             if min_precio:
-                productos = productos.filter(precio__gte=min_precio)
+                try:
+                    productos = productos.filter(precio__gte=float(min_precio))
+                except ValueError:
+                    pass
             
             if max_precio:
-                productos = productos.filter(precio__lte=max_precio)
+                try:
+                    productos = productos.filter(precio__lte=float(max_precio))
+                except ValueError:
+                    pass
             
             # Ordenamiento
             if order_by in ['nombre', 'precio', '-precio']:
@@ -45,8 +54,13 @@ class ProductoListView(View):
                 productos = productos.order_by('nombre') # Default fallback
 
             # Paginación (simple, se puede mejorar con Django Paginator)
-            page = int(request.GET.get('page', 1))
-            page_size = int(request.GET.get('page_size', 10))
+            try:
+                page = int(request.GET.get('page', 1))
+                page_size = int(request.GET.get('page_size', 10))
+            except ValueError:
+                page = 1
+                page_size = 10
+            
             start = (page - 1) * page_size
             end = start + page_size
 
@@ -55,22 +69,54 @@ class ProductoListView(View):
 
             data = []
             for p in productos:
-                # Obtener stock actual
-                stock_obj = Stock.objects.filter(producto=p).first()
-                stock_cantidad = stock_obj.cantidad if stock_obj else 0
-                
-                data.append({
-                    'id': p.id,
-                    'nombre': p.nombre,
-                    'descripcion': p.descripcion,
-                    'precio': float(p.precio),
-                    'stock': stock_cantidad,
-                    'imagen': p.imagen,
-                    'categoria': p.categoria.nombre if p.categoria else None,
-                    'marca': p.marca.nombre if p.marca else None,
-                    'proveedor': p.proveedor.nombre if p.proveedor else None,
-                    'estado': True,
-                })
+                try:
+                    # Obtener stock actual de forma segura
+                    stock_cantidad = 0
+                    try:
+                        stock_obj = Stock.objects.filter(producto=p).first()
+                        if stock_obj:
+                            stock_cantidad = stock_obj.cantidad
+                    except Exception:
+                        pass
+                    
+                    # Acceso seguro a relaciones
+                    categoria_nombre = None
+                    try:
+                        if p.categoria:
+                            categoria_nombre = p.categoria.nombre
+                    except Exception:
+                        pass
+                    
+                    marca_nombre = None
+                    try:
+                        if p.marca:
+                            marca_nombre = p.marca.nombre
+                    except Exception:
+                        pass
+                    
+                    proveedor_nombre = None
+                    try:
+                        if p.proveedor:
+                            proveedor_nombre = p.proveedor.nombre
+                    except Exception:
+                        pass
+                    
+                    data.append({
+                        'id': p.id,
+                        'nombre': p.nombre or '',
+                        'descripcion': p.descripcion or '',
+                        'precio': float(p.precio) if p.precio else 0.0,
+                        'stock': stock_cantidad,
+                        'imagen': p.imagen or '',
+                        'categoria': categoria_nombre,
+                        'marca': marca_nombre,
+                        'proveedor': proveedor_nombre,
+                        'estado': True,
+                    })
+                except Exception as e:
+                    # Si hay error con un producto, continuar con los demás
+                    logger.error(f"Error procesando producto {p.id}: {str(e)}", exc_info=True)
+                    continue
             
             return JsonResponse({
                 'success': True,
@@ -81,7 +127,11 @@ class ProductoListView(View):
             }, status=200)
 
         except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+            logger.error(f"Error en ProductoListView: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False, 
+                'message': f'Error al obtener productos: {str(e)}'
+            }, status=500)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -111,8 +161,13 @@ class ProductoAdminView(View):
                 productos = productos.order_by('nombre')
 
             # Paginación
-            page = int(request.GET.get('page', 1))
-            page_size = int(request.GET.get('page_size', 100))
+            try:
+                page = int(request.GET.get('page', 1))
+                page_size = int(request.GET.get('page_size', 100))
+            except ValueError:
+                page = 1
+                page_size = 100
+            
             start = (page - 1) * page_size
             end = start + page_size
 
@@ -121,22 +176,54 @@ class ProductoAdminView(View):
 
             data = []
             for p in productos:
-                # Obtener stock actual
-                stock_obj = Stock.objects.filter(producto=p).first()
-                stock_cantidad = stock_obj.cantidad if stock_obj else 0
-                
-                data.append({
-                    'id': p.id,
-                    'nombre': p.nombre,
-                    'descripcion': p.descripcion,
-                    'precio': float(p.precio),
-                    'stock': stock_cantidad,
-                    'imagen': p.imagen,
-                    'categoria': p.categoria.nombre if p.categoria else None,
-                    'marca': p.marca.nombre if p.marca else None,
-                    'proveedor': p.proveedor.nombre if p.proveedor else None,
-                    'estado': True,
-                })
+                try:
+                    # Obtener stock actual de forma segura
+                    stock_cantidad = 0
+                    try:
+                        stock_obj = Stock.objects.filter(producto=p).first()
+                        if stock_obj:
+                            stock_cantidad = stock_obj.cantidad
+                    except Exception:
+                        pass
+                    
+                    # Acceso seguro a relaciones
+                    categoria_nombre = None
+                    try:
+                        if p.categoria:
+                            categoria_nombre = p.categoria.nombre
+                    except Exception:
+                        pass
+                    
+                    marca_nombre = None
+                    try:
+                        if p.marca:
+                            marca_nombre = p.marca.nombre
+                    except Exception:
+                        pass
+                    
+                    proveedor_nombre = None
+                    try:
+                        if p.proveedor:
+                            proveedor_nombre = p.proveedor.nombre
+                    except Exception:
+                        pass
+                    
+                    data.append({
+                        'id': p.id,
+                        'nombre': p.nombre or '',
+                        'descripcion': p.descripcion or '',
+                        'precio': float(p.precio) if p.precio else 0.0,
+                        'stock': stock_cantidad,
+                        'imagen': p.imagen or '',
+                        'categoria': categoria_nombre,
+                        'marca': marca_nombre,
+                        'proveedor': proveedor_nombre,
+                        'estado': True,
+                    })
+                except Exception as e:
+                    # Si hay error con un producto, continuar con los demás
+                    logger.error(f"Error procesando producto {p.id}: {str(e)}", exc_info=True)
+                    continue
             
             return JsonResponse({
                 'success': True,
@@ -147,7 +234,11 @@ class ProductoAdminView(View):
             }, status=200)
 
         except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+            logger.error(f"Error en ProductoAdminView: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False, 
+                'message': f'Error al obtener productos: {str(e)}'
+            }, status=500)
 
     def post(self, request):
         """Crear nuevo producto"""
@@ -370,4 +461,132 @@ class UploadImageView(View):
                 'success': False,
                 'message': f'Error interno: {str(e)}'
             }, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CategoriaListView(View):
+    """Gestión completa de categorías (CRUD)"""
+    
+    def get(self, request):
+        """Obtener lista de todas las categorías disponibles"""
+        try:
+            categorias = Categoria.objects.all().order_by('nombre')
+            data = []
+            for cat in categorias:
+                try:
+                    data.append({
+                        'id': cat.id_categoria,
+                        'nombre': cat.nombre or '',
+                        'descripcion': cat.descripcion or ''
+                    })
+                except Exception as e:
+                    # Si hay error con una categoría, continuar con las demás
+                    logger.error(f"Error procesando categoría {cat.id_categoria}: {str(e)}", exc_info=True)
+                    continue
+            
+            return JsonResponse({
+                'success': True,
+                'categorias': data
+            }, status=200)
+            
+        except Exception as e:
+            logger.error(f"Error en CategoriaListView.get: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al obtener categorías: {str(e)}'
+            }, status=500)
+    
+    def post(self, request):
+        """Crear nueva categoría"""
+        try:
+            data = json.loads(request.body)
+            
+            if not data.get('nombre'):
+                return JsonResponse({'success': False, 'message': 'El nombre es obligatorio'}, status=400)
+            
+            # Verificar si ya existe una categoría con ese nombre
+            if Categoria.objects.filter(nombre__iexact=data['nombre']).exists():
+                return JsonResponse({'success': False, 'message': 'Ya existe una categoría con ese nombre'}, status=400)
+            
+            categoria = Categoria.objects.create(
+                nombre=data['nombre'],
+                descripcion=data.get('descripcion', '')
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Categoría creada exitosamente',
+                'id': categoria.id_categoria
+            }, status=201)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'message': 'JSON inválido'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+    
+    def put(self, request):
+        """Actualizar categoría existente"""
+        try:
+            data = json.loads(request.body)
+            categoria_id = data.get('id')
+            
+            if not categoria_id:
+                return JsonResponse({'success': False, 'message': 'ID de categoría requerido'}, status=400)
+            
+            try:
+                categoria = Categoria.objects.get(id_categoria=categoria_id)
+            except Categoria.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'Categoría no encontrada'}, status=404)
+            
+            # Si se cambia el nombre, verificar que no exista otra con ese nombre
+            if 'nombre' in data and data['nombre'] != categoria.nombre:
+                if Categoria.objects.filter(nombre__iexact=data['nombre']).exclude(id_categoria=categoria_id).exists():
+                    return JsonResponse({'success': False, 'message': 'Ya existe otra categoría con ese nombre'}, status=400)
+                categoria.nombre = data['nombre']
+            
+            if 'descripcion' in data:
+                categoria.descripcion = data['descripcion']
+            
+            categoria.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Categoría actualizada exitosamente'
+            }, status=200)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'message': 'JSON inválido'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+    
+    def delete(self, request):
+        """Eliminar categoría"""
+        try:
+            categoria_id = request.GET.get('id')
+            
+            if not categoria_id:
+                return JsonResponse({'success': False, 'message': 'ID de categoría requerido'}, status=400)
+            
+            try:
+                categoria = Categoria.objects.get(id_categoria=categoria_id)
+            except Categoria.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'Categoría no encontrada'}, status=404)
+            
+            # Verificar si hay productos usando esta categoría
+            productos_count = Producto.objects.filter(categoria=categoria).count()
+            if productos_count > 0:
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'No se puede eliminar la categoría porque tiene {productos_count} producto(s) asociado(s)'
+                }, status=400)
+            
+            categoria.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Categoría eliminada exitosamente'
+            }, status=200)
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
 

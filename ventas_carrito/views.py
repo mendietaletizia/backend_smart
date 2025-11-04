@@ -4,9 +4,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.contrib.sessions.models import Session
 import json
+import logging
 
 from .models import Carrito, ItemCarrito, Venta, DetalleVenta
 from productos.models import Producto
+
+logger = logging.getLogger(__name__)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -44,9 +47,10 @@ class CarritoView(View):
             }, status=200)
             
         except Exception as e:
+            logger.error(f"Error en CarritoView.get: {str(e)}", exc_info=True)
             return JsonResponse({
                 'success': False,
-                'message': str(e)
+                'message': f'Error al obtener carrito: {str(e)}'
             }, status=500)
 
     def post(self, request):
@@ -80,15 +84,32 @@ class CarritoView(View):
             # Obtener o crear carrito
             carrito = self._get_or_create_carrito(request)
             
-            # Verificar si el producto ya está en el carrito
+            # Validar stock disponible
+            from productos.models import Stock
+            stock_obj = Stock.objects.filter(producto=producto).first()
+            stock_disponible = stock_obj.cantidad if stock_obj else 0
+            
+            # Calcular cantidad total que se intenta agregar
+            cantidad_actual = 0
             item_existente = ItemCarrito.objects.filter(
                 carrito=carrito,
                 producto=producto
             ).first()
+            if item_existente:
+                cantidad_actual = item_existente.cantidad
             
+            cantidad_total = cantidad_actual + cantidad
+            
+            if cantidad_total > stock_disponible:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Stock insuficiente. Disponible: {stock_disponible}, solicitado: {cantidad_total}'
+                }, status=400)
+            
+            # Verificar si el producto ya está en el carrito
             if item_existente:
                 # Actualizar cantidad del item existente
-                item_existente.cantidad += cantidad
+                item_existente.cantidad = cantidad_total
                 item_existente.save()
                 mensaje = f"Se agregaron {cantidad} unidades más de {producto.nombre}"
             else:
@@ -101,11 +122,15 @@ class CarritoView(View):
                 )
                 mensaje = f"{producto.nombre} agregado al carrito"
             
+            # Recargar carrito para obtener total actualizado
+            carrito.refresh_from_db()
+            
             return JsonResponse({
                 'success': True,
                 'message': mensaje,
                 'carrito_id': carrito.id_carrito,
-                'total_items': carrito.total_items
+                'total_items': carrito.get_total_items(),
+                'total_precio': float(carrito.get_total_precio())
             }, status=200)
             
         except json.JSONDecodeError:
@@ -114,9 +139,10 @@ class CarritoView(View):
                 'message': 'JSON inválido'
             }, status=400)
         except Exception as e:
+            logger.error(f"Error en CarritoView.post: {str(e)}", exc_info=True)
             return JsonResponse({
                 'success': False,
-                'message': str(e)
+                'message': f'Error al agregar al carrito: {str(e)}'
             }, status=500)
 
     def put(self, request):
@@ -133,7 +159,7 @@ class CarritoView(View):
                 }, status=400)
             
             try:
-                item = ItemCarrito.objects.get(id_item=item_id)
+                item = ItemCarrito.objects.select_related('producto').get(id_item=item_id)
             except ItemCarrito.DoesNotExist:
                 return JsonResponse({
                     'success': False,
@@ -142,16 +168,34 @@ class CarritoView(View):
             
             if cantidad <= 0:
                 # Eliminar el item si la cantidad es 0 o menor
+                producto_nombre = item.producto.nombre
                 item.delete()
-                mensaje = f"{item.producto.nombre} eliminado del carrito"
+                mensaje = f"{producto_nombre} eliminado del carrito"
             else:
+                # Validar stock disponible
+                from productos.models import Stock
+                stock_obj = Stock.objects.filter(producto=item.producto).first()
+                stock_disponible = stock_obj.cantidad if stock_obj else 0
+                
+                if cantidad > stock_disponible:
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'Stock insuficiente. Disponible: {stock_disponible}, solicitado: {cantidad}'
+                    }, status=400)
+                
                 item.cantidad = cantidad
                 item.save()
                 mensaje = f"Cantidad de {item.producto.nombre} actualizada"
             
+            # Obtener carrito actualizado
+            carrito = item.carrito
+            carrito.refresh_from_db()
+            
             return JsonResponse({
                 'success': True,
-                'message': mensaje
+                'message': mensaje,
+                'total_items': carrito.get_total_items(),
+                'total_precio': float(carrito.get_total_precio())
             }, status=200)
             
         except json.JSONDecodeError:
@@ -160,9 +204,10 @@ class CarritoView(View):
                 'message': 'JSON inválido'
             }, status=400)
         except Exception as e:
+            logger.error(f"Error en CarritoView.put: {str(e)}", exc_info=True)
             return JsonResponse({
                 'success': False,
-                'message': str(e)
+                'message': f'Error al actualizar carrito: {str(e)}'
             }, status=500)
 
     def delete(self, request):
@@ -177,13 +222,19 @@ class CarritoView(View):
                 }, status=400)
             
             try:
-                item = ItemCarrito.objects.get(id_item=item_id)
+                item = ItemCarrito.objects.select_related('producto', 'carrito').get(id_item=item_id)
                 producto_nombre = item.producto.nombre
+                carrito = item.carrito
                 item.delete()
+                
+                # Recargar carrito para obtener total actualizado
+                carrito.refresh_from_db()
                 
                 return JsonResponse({
                     'success': True,
-                    'message': f"{producto_nombre} eliminado del carrito"
+                    'message': f"{producto_nombre} eliminado del carrito",
+                    'total_items': carrito.get_total_items(),
+                    'total_precio': float(carrito.get_total_precio())
                 }, status=200)
                 
             except ItemCarrito.DoesNotExist:
@@ -193,28 +244,37 @@ class CarritoView(View):
                 }, status=404)
                 
         except Exception as e:
+            logger.error(f"Error en CarritoView.delete: {str(e)}", exc_info=True)
             return JsonResponse({
                 'success': False,
-                'message': str(e)
+                'message': f'Error al eliminar del carrito: {str(e)}'
             }, status=500)
 
     def _get_or_create_carrito(self, request):
         """Obtener o crear carrito para el usuario/sesión"""
-        # Si el usuario está autenticado, usar su carrito
-        if hasattr(request, 'user') and request.user.is_authenticated:
+        # Si el usuario está autenticado (usando sesión personalizada), usar su carrito
+        if request.session.get('is_authenticated'):
             try:
-                from autenticacion_usuarios.models import Cliente
-                cliente = Cliente.objects.get(id=request.user)
-                carrito, created = Carrito.objects.get_or_create(
-                    cliente=cliente,
-                    activo=True,
-                    defaults={'session_key': None}
-                )
-                return carrito
-            except:
+                from autenticacion_usuarios.models import Cliente, Usuario
+                user_id = request.session.get('user_id')
+                if user_id:
+                    usuario = Usuario.objects.get(id=user_id)
+                    # Verificar si es cliente
+                    if usuario.id_rol.nombre.lower() == 'cliente':
+                        try:
+                            cliente = Cliente.objects.get(id=usuario)
+                            carrito, created = Carrito.objects.get_or_create(
+                                cliente=cliente,
+                                activo=True,
+                                defaults={'session_key': None}
+                            )
+                            return carrito
+                        except Cliente.DoesNotExist:
+                            pass
+            except Exception:
                 pass
         
-        # Si no está autenticado, usar session_key
+        # Si no está autenticado o no es cliente, usar session_key
         session_key = request.session.session_key
         if not session_key:
             request.session.create()
@@ -258,19 +318,23 @@ class CarritoManagementView(View):
                 'message': 'JSON inválido'
             }, status=400)
         except Exception as e:
+            logger.error(f"Error en CarritoManagementView.post: {str(e)}", exc_info=True)
             return JsonResponse({
                 'success': False,
-                'message': str(e)
+                'message': f'Error en gestión del carrito: {str(e)}'
             }, status=500)
 
     def _clear_carrito(self, request):
         """CU9: Limpiar completamente el carrito"""
         carrito = self._get_or_create_carrito(request)
         ItemCarrito.objects.filter(carrito=carrito).delete()
+        carrito.refresh_from_db()
         
         return JsonResponse({
             'success': True,
-            'message': 'Carrito limpiado exitosamente'
+            'message': 'Carrito limpiado exitosamente',
+            'total_items': carrito.get_total_items(),
+            'total_precio': float(carrito.get_total_precio())
         }, status=200)
 
     def _merge_carritos(self, request, data):
@@ -396,21 +460,29 @@ class CarritoManagementView(View):
 
     def _get_or_create_carrito(self, request):
         """Método auxiliar para obtener o crear carrito"""
-        # Si el usuario está autenticado, usar su carrito
-        if hasattr(request, 'user') and request.user.is_authenticated:
+        # Si el usuario está autenticado (usando sesión personalizada), usar su carrito
+        if request.session.get('is_authenticated'):
             try:
-                from autenticacion_usuarios.models import Cliente
-                cliente = Cliente.objects.get(id=request.user)
-                carrito, created = Carrito.objects.get_or_create(
-                    cliente=cliente,
-                    activo=True,
-                    defaults={'session_key': None}
-                )
-                return carrito
-            except:
+                from autenticacion_usuarios.models import Cliente, Usuario
+                user_id = request.session.get('user_id')
+                if user_id:
+                    usuario = Usuario.objects.get(id=user_id)
+                    # Verificar si es cliente
+                    if usuario.id_rol.nombre.lower() == 'cliente':
+                        try:
+                            cliente = Cliente.objects.get(id=usuario)
+                            carrito, created = Carrito.objects.get_or_create(
+                                cliente=cliente,
+                                activo=True,
+                                defaults={'session_key': None}
+                            )
+                            return carrito
+                        except Cliente.DoesNotExist:
+                            pass
+            except Exception:
                 pass
         
-        # Si no está autenticado, usar session_key
+        # Si no está autenticado o no es cliente, usar session_key
         session_key = request.session.session_key
         if not session_key:
             request.session.create()

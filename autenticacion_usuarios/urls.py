@@ -15,5 +15,10 @@ urlpatterns = [
     
     # Vista auxiliar para verificar sesión
     path('check-session/', views.CheckSessionView.as_view(), name='check_session'),
+    
+    # Gestión de Clientes (CRUD)
+    path('clientes/', views.ClientesListView.as_view(), name='clientes_list'),
+    path('clientes/<int:cliente_id>/', views.ClienteDetailView.as_view(), name='cliente_detail'),
+    path('clientes/<int:cliente_id>/ventas/', views.ClienteVentasView.as_view(), name='cliente_ventas'),
 ]
 

@@ -99,16 +99,38 @@ class CheckoutView(View):
             )
             
             # Crear detalles de venta y actualizar stock
+            from productos.models import Stock
+            import logging
+            logger = logging.getLogger(__name__)
+            
             detalles_creados = []
-            for item in items_carrito:
-                # Verificar stock disponible
-                if item.producto.stock < item.cantidad:
-                    venta.delete()  # Eliminar venta si no hay stock
-                    return JsonResponse({
-                        'success': False,
-                        'message': f'Stock insuficiente para {item.producto.nombre}. Disponible: {item.producto.stock}'
-                    }, status=400)
+            productos_sin_stock = []
+            
+            # Primero verificar todo el stock disponible
+            for item in items_carrito.select_related('producto'):
+                stock_obj = Stock.objects.filter(producto=item.producto).first()
+                stock_disponible = stock_obj.cantidad if stock_obj else 0
                 
+                if stock_disponible < item.cantidad:
+                    productos_sin_stock.append({
+                        'producto': item.producto.nombre,
+                        'solicitado': item.cantidad,
+                        'disponible': stock_disponible
+                    })
+            
+            # Si hay productos sin stock, cancelar la venta
+            if productos_sin_stock:
+                venta.delete()
+                mensaje = 'Stock insuficiente para los siguientes productos: '
+                mensaje += ', '.join([f"{p['producto']} (solicitado: {p['solicitado']}, disponible: {p['disponible']})" 
+                                    for p in productos_sin_stock])
+                return JsonResponse({
+                    'success': False,
+                    'message': mensaje
+                }, status=400)
+            
+            # Si todo está bien, crear detalles y actualizar stock
+            for item in items_carrito.select_related('producto'):
                 # Crear detalle de venta
                 detalle = DetalleVenta.objects.create(
                     venta=venta,
@@ -119,8 +141,14 @@ class CheckoutView(View):
                 detalles_creados.append(detalle)
                 
                 # Actualizar stock del producto
-                item.producto.stock -= item.cantidad
-                item.producto.save()
+                stock_obj = Stock.objects.filter(producto=item.producto).first()
+                if stock_obj:
+                    stock_obj.cantidad -= item.cantidad
+                    if stock_obj.cantidad < 0:
+                        stock_obj.cantidad = 0
+                    stock_obj.save()
+                else:
+                    logger.warning(f"Producto {item.producto.id} no tiene registro de stock")
             
             # Marcar venta como completada
             venta.estado = 'completada'
@@ -161,6 +189,9 @@ class CheckoutView(View):
                 'message': 'Formato de datos inválido'
             }, status=400)
         except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error en CheckoutView.post: {str(e)}", exc_info=True)
             return JsonResponse({
                 'success': False,
                 'message': f'Error interno: {str(e)}'
