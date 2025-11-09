@@ -154,6 +154,21 @@ class CheckoutView(View):
             venta.estado = 'completada'
             venta.save()
             
+            # CU12: Generar comprobante automáticamente
+            comprobante_data = None
+            try:
+                from .comprobantes_views import ComprobanteView
+                comprobante_view = ComprobanteView()
+                comprobante = comprobante_view._generar_comprobante(venta, 'factura')
+                comprobante_data = {
+                    'id': comprobante.id_comprobante,
+                    'numero': comprobante.nro,
+                    'pdf_url': f'/api/ventas/comprobantes/{venta.id_venta}/pdf/'
+                }
+            except Exception as e:
+                logger.warning(f"Error al generar comprobante automático: {str(e)}")
+                # No fallar la venta si el comprobante falla
+            
             # Limpiar carrito
             items_carrito.delete()
             carrito.delete()
@@ -169,7 +184,7 @@ class CheckoutView(View):
             )
             
             # Respuesta exitosa
-            return JsonResponse({
+            response_data = {
                 'success': True,
                 'message': 'Compra realizada exitosamente',
                 'venta': {
@@ -181,7 +196,12 @@ class CheckoutView(View):
                     'direccion_entrega': venta.direccion_entrega,
                     'productos': len(detalles_creados)
                 }
-            }, status=201)
+            }
+            
+            if comprobante_data:
+                response_data['comprobante'] = comprobante_data
+            
+            return JsonResponse(response_data, status=201)
             
         except json.JSONDecodeError:
             return JsonResponse({

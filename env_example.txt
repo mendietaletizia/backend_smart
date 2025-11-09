@@ -25,3 +25,9 @@ EMAIL_HOST_PASSWORD=your-app-password
 # Configuración de desarrollo
 ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+
+# Configuración de Stripe (TEST MODE)
+# Obtén tus claves de prueba en: https://dashboard.stripe.com/test/apikeys
+STRIPE_SECRET_KEY=sk_test_tu_clave_secreta_aqui
+STRIPE_PUBLISHABLE_KEY=pk_test_tu_clave_publica_aqui
+STRIPE_WEBHOOK_SECRET=whsec_tu_webhook_secret_aqui  # Opcional para desarrollo

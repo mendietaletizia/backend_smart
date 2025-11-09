@@ -36,6 +36,11 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 # Configuración de ImgBB API
 API_KEY_IMGBB = config('API_KEY_IMGBB', default='49879cfe2271fe3272c9864c92e980d1')
 
+# Configuración de Stripe
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+
 
 ALLOWED_HOSTS = ['*']  # Permite todas las conexiones (para desarrollo)
 

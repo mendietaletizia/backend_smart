@@ -28,7 +28,7 @@ urlpatterns = [
     path('api/productos/', include('productos.urls')),
     path('api/ventas/', include('ventas_carrito.urls')),
     # path('api/dashboard/', include('dashboard_inteligente.urls')),
-    # path('api/reportes/', include('reportes_dinamicos.urls')),
+    path('api/reportes/', include('reportes_dinamicos.urls')),
 ]
 
 # Servir archivos media en desarrollo
