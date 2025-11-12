@@ -14,9 +14,10 @@ import logging
 import stripe
 from decimal import Decimal
 
-from .models import Venta, PagoOnline, MetodoPago, Carrito, ItemCarrito, DetalleVenta
+from .models import Venta, PagoOnline, MetodoPago, Carrito, ItemCarrito, DetalleVenta, Comprobante
 from autenticacion_usuarios.models import Usuario, Cliente, Bitacora
 from productos.models import Stock
+from .comprobantes_views import ComprobanteView
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ class CreatePaymentIntentView(View):
                 payment_intent = stripe.PaymentIntent.create(
                     amount=amount_cents,
                     currency='usd',  # USD para compatibilidad con tarjetas de prueba
-                    automatic_payment_methods={'enabled': True},
+                    payment_method_types=['card'],  # Solo tarjetas de crédito/débito (sin Amazon Pay, Link, Cash App Pay)
                     metadata={
                         'venta_id': str(venta.id_venta),
                         'cliente_id': str(cliente.id.id),
@@ -293,6 +294,8 @@ class VerifyPaymentIntentView(View):
             
             # Si el pago fue exitoso en Stripe, actualizar el registro
             if status_pi == 'succeeded':
+                comprobante_data = None
+                
                 with transaction.atomic():
                     pago_online.estado = 'exitoso'
                     pago_online.save(update_fields=['estado'])
@@ -319,6 +322,35 @@ class VerifyPaymentIntentView(View):
                     except Carrito.DoesNotExist:
                         pass
                 
+                # CU12: Generar comprobante automáticamente después de pago exitoso
+                try:
+                    comprobante_view = ComprobanteView()
+                    # Verificar si ya existe comprobante
+                    if hasattr(venta, 'comprobante'):
+                        comprobante = venta.comprobante
+                        # Regenerar PDF si ya existe
+                        try:
+                            pdf_path = comprobante_view._generar_pdf(comprobante, venta)
+                            comprobante.pdf_ruta = pdf_path
+                            comprobante.save()
+                        except Exception as e:
+                            logger.warning(f"Error al regenerar PDF del comprobante: {str(e)}")
+                    else:
+                        # Crear nuevo comprobante
+                        comprobante = comprobante_view._generar_comprobante(venta, 'factura')
+                    
+                    comprobante_data = {
+                        'id': comprobante.id_comprobante,
+                        'numero': comprobante.nro,
+                        'tipo': comprobante.tipo,
+                        'fecha': comprobante.fecha_emision.isoformat(),
+                        'pdf_url': f'/api/ventas/comprobantes/{venta.id_venta}/pdf/'
+                    }
+                    logger.info(f"✅ Comprobante #{comprobante.nro} generado automáticamente para venta #{venta.id_venta}")
+                except Exception as e:
+                    logger.error(f"Error al generar comprobante automático: {str(e)}", exc_info=True)
+                    # No fallar la venta si el comprobante falla, pero registrar el error
+                
                 # Registrar en bitácora
                 try:
                     user_id = request.session.get('user_id')
@@ -336,13 +368,19 @@ class VerifyPaymentIntentView(View):
                 
                 logger.info(f"✅ PagoOnline #{pago_online.id_pago} y Venta #{venta.id_venta} confirmados exitosamente")
                 
-                return JsonResponse({
+                response_data = {
                     'success': True,
                     'status': status_pi,
                     'pago_online_id': pago_online.id_pago,
                     'venta_id': venta.id_venta,
                     'message': 'Pago confirmado exitosamente'
-                }, status=200)
+                }
+                
+                # Agregar información del comprobante si se generó exitosamente
+                if comprobante_data:
+                    response_data['comprobante'] = comprobante_data
+                
+                return JsonResponse(response_data, status=200)
             
             # Si el pago requiere acción adicional
             elif status_pi in ['requires_payment_method', 'requires_confirmation', 'requires_action']:

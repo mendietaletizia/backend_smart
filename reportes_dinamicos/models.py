@@ -56,7 +56,7 @@ class PrediccionVenta(models.Model):
     
     def __str__(self):
         cat = self.categoria.nombre if self.categoria else "General"
-        return f"Predicción {self.fecha_prediccion} - {cat} - ${self.valor_predicho}"
+        return f"Predicción {self.fecha_prediccion} - {cat} - Bs. {self.valor_predicho}"
 
 
 class Reporte(models.Model):

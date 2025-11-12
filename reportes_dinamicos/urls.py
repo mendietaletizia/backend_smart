@@ -11,5 +11,6 @@ urlpatterns = [
     path('<int:reporte_id>/descargar/', views.DescargarReporteView.as_view(), name='descargar_reporte'),
     # CU19: Filtros inteligentes
     path('filtros-inteligentes/', views.FiltrosInteligentesView.as_view(), name='filtros_inteligentes'),
+    path('opciones-filtros/', views.OpcionesFiltrosView.as_view(), name='opciones_filtros'),
 ]
 
