@@ -17,15 +17,19 @@ class ModeloIA(models.Model):
     ]
     
     id_modelo = models.AutoField(primary_key=True)
-    nombre = models.CharField(max_length=100)
-    algoritmo = models.CharField(max_length=50)  # random_forest, linear_regression, etc.
-    fecha_entrenamiento = models.DateTimeField(auto_now_add=True)
+    nombre = models.CharField(max_length=100, default='Modelo de Predicción de Ventas')
+    algoritmo = models.CharField(max_length=50, default='random_forest')  # random_forest, linear_regression, etc.
+    fecha_entrenamiento = models.DateTimeField(null=True, blank=True)
+    fecha_ultima_actualizacion = models.DateTimeField(null=True, blank=True)  # Nueva campo
     r2_score = models.FloatField(null=True, blank=True)  # Métrica de rendimiento
     rmse = models.FloatField(null=True, blank=True)  # Root Mean Squared Error
+    mae = models.FloatField(null=True, blank=True)  # Mean Absolute Error - Nueva campo
     ruta_modelo = models.CharField(max_length=500, blank=True, null=True)  # Ruta al archivo del modelo
-    estado = models.CharField(max_length=20, choices=ESTADOS_MODELO, default='activo')
+    estado = models.CharField(max_length=20, choices=ESTADOS_MODELO, default='retirado')
     version = models.CharField(max_length=20, default='1.0')
     descripcion = models.TextField(blank=True, null=True)
+    registros_entrenamiento = models.IntegerField(default=0)  # Nueva campo - Cantidad de registros usados
+    proxima_actualizacion = models.DateTimeField(null=True, blank=True)  # Nueva campo - Para actualización periódica
     
     class Meta:
         db_table = 'modelo_ia'

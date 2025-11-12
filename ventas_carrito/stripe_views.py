@@ -11,8 +11,15 @@ from django.db import transaction
 from django.utils import timezone
 import json
 import logging
-import stripe
 from decimal import Decimal
+
+# Import opcional de stripe
+try:
+    import stripe
+    STRIPE_AVAILABLE = True
+except ImportError:
+    stripe = None
+    STRIPE_AVAILABLE = False
 
 from .models import Venta, PagoOnline, MetodoPago, Carrito, ItemCarrito, DetalleVenta, Comprobante
 from autenticacion_usuarios.models import Usuario, Cliente, Bitacora
@@ -22,7 +29,10 @@ from .comprobantes_views import ComprobanteView
 logger = logging.getLogger(__name__)
 
 # Configurar Stripe con la clave secreta desde variables de entorno
-stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
+if STRIPE_AVAILABLE:
+    stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', '')
+else:
+    logger.warning("Stripe no está instalado. Las funcionalidades de pago con Stripe no estarán disponibles.")
 
 
 def _get_client_ip(request):
@@ -43,6 +53,12 @@ class GetStripePublishableKeyView(View):
     """
     
     def get(self, request):
+        if not STRIPE_AVAILABLE:
+            return JsonResponse({
+                'success': False,
+                'message': 'Stripe no está disponible. Por favor, instale el módulo stripe.'
+            }, status=503)
+        
         publishable_key = getattr(settings, 'STRIPE_PUBLISHABLE_KEY', '')
         return JsonResponse({
             'success': True,
@@ -68,6 +84,12 @@ class CreatePaymentIntentView(View):
     """
     
     def post(self, request):
+        if not STRIPE_AVAILABLE:
+            return JsonResponse({
+                'success': False,
+                'message': 'Stripe no está disponible. Por favor, instale el módulo stripe.'
+            }, status=503)
+        
         try:
             # Verificar autenticación
             if not request.session.get('is_authenticated'):
@@ -256,6 +278,12 @@ class VerifyPaymentIntentView(View):
     """
     
     def post(self, request):
+        if not STRIPE_AVAILABLE:
+            return JsonResponse({
+                'success': False,
+                'message': 'Stripe no está disponible. Por favor, instale el módulo stripe.'
+            }, status=503)
+        
         try:
             data = json.loads(request.body)
             payment_intent_id = data.get('payment_intent_id')
